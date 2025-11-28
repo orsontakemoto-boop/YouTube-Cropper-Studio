@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Cropper Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>YouTube <span>Cropper Studio</span></h1>
+            <p>Recorte e visualize vídeos com precisão</p>
+        </header>
+
+        <main class="workspace">
+            <section class="controls-panel">
+                <div class="input-group">
+                    <input type="text" id="videoUrl" placeholder="Cole o link do YouTube aqui..." autocomplete="off">
+                    <button id="loadBtn" class="btn-primary">Carregar Vídeo</button>
+                </div>
+
+                <div class="crop-controls" id="cropControls" style="display: none;">
+                    <h3>Ajustes de Recorte</h3>
+                    <div class="control-row">
+                        <label>Proporção</label>
+                        <select id="aspectRatio">
+                            <option value="free">Livre</option>
+                            <option value="16:9">16:9 (Widescreen)</option>
+                            <option value="9:16">9:16 (Shorts/TikTok)</option>
+                            <option value="1:1">1:1 (Quadrado)</option>
+                            <option value="4:5">4:5 (Instagram)</option>
+                        </select>
+                    </div>
+                    <div class="actions">
+                        <button id="toggleCropBtn" class="btn-secondary">Visualizar Recorte</button>
+                        <button id="resetBtn" class="btn-text">Resetar</button>
+                    </div>
+
+                    <div class="recording-controls"
+                        style="margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                        <h3>Gravação</h3>
+                        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Dê play no
+                            vídeo e inicie a gravação.</p>
+                        <button id="startRecordBtn" class="btn-primary"
+                            style="width: 100%; background-color: #ef4444;">Iniciar Gravação</button>
+                        <button id="stopRecordBtn" class="btn-secondary" style="width: 100%; display: none;">Parar
+                            Gravação</button>
+                        <div id="recordingStatus"
+                            style="display: none; color: #ef4444; font-size: 0.9rem; margin-top: 0.5rem; align-items: center; gap: 0.5rem;">
+                            <span class="dot"></span> Gravando...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="preview-area">
+                <div id="videoContainer" class="video-container">
+                    <div id="player"></div>
+                    <div id="cropOverlay" class="crop-overlay" style="display: none;">
+                        <div class="crop-box" id="cropBox">
+                            <div class="handle nw"></div>
+                            <div class="handle ne"></div>
+                            <div class="handle sw"></div>
+                            <div class="handle se"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

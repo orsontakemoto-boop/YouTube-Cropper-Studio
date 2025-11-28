@@ -1,0 +1,260 @@
+:root {
+    --bg-color: #0f172a;
+    --surface-color: #1e293b;
+    --primary-color: #6366f1;
+    --primary-hover: #4f46e5;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --border-color: #334155;
+    --overlay-dim: rgba(0, 0, 0, 0.7);
+    --handle-color: #fff;
+    --handle-size: 12px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Outfit', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+}
+
+.app-container {
+    width: 100%;
+    max-width: 1200px;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.app-header {
+    text-align: center;
+}
+
+.app-header h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.app-header h1 span {
+    color: var(--primary-color);
+}
+
+.app-header p {
+    color: var(--text-secondary);
+}
+
+.workspace {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 2rem;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .workspace {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Controls Panel */
+.controls-panel {
+    background: var(--surface-color);
+    padding: 1.5rem;
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+input[type="text"] {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+input[type="text"]:focus {
+    border-color: var(--primary-color);
+}
+
+button {
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 500;
+    border: none;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: var(--primary-color);
+    color: white;
+    padding: 0.75rem;
+}
+
+.btn-primary:hover {
+    background: var(--primary-hover);
+}
+
+.btn-secondary {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 0.75rem;
+}
+
+.btn-secondary:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.btn-text {
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 0.5rem;
+}
+
+.btn-text:hover {
+    color: var(--text-primary);
+}
+
+.crop-controls h3 {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+
+.control-row {
+    margin-bottom: 1rem;
+}
+
+.control-row label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+select {
+    width: 100%;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 0.6rem;
+    border-radius: 6px;
+    outline: none;
+}
+
+.actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* Video Area */
+.preview-area {
+    background: black;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+    position: relative;
+    /* Aspect ratio placeholder before video loads */
+    min-height: 400px; 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.video-container {
+    position: relative;
+    width: 100%;
+    /* 16:9 Aspect Ratio by default */
+    padding-bottom: 56.25%; 
+    height: 0;
+}
+
+#player {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* Crop Overlay */
+.crop-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--overlay-dim);
+    z-index: 10;
+    /* Allow clicks to pass through to player controls if needed, 
+       but we need to catch them for resizing. 
+       We'll handle this via JS or careful pointer-events */
+}
+
+.crop-box {
+    position: absolute;
+    /* Initial centered box */
+    top: 10%;
+    left: 25%;
+    width: 50%;
+    height: 80%;
+    border: 2px solid var(--primary-color);
+    box-shadow: 0 0 0 9999px var(--overlay-dim); /* The "cutout" effect */
+    cursor: move;
+}
+
+.handle {
+    position: absolute;
+    width: var(--handle-size);
+    height: var(--handle-size);
+    background: var(--handle-color);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.nw { top: 0; left: 0; cursor: nw-resize; }
+.ne { top: 0; left: 100%; cursor: ne-resize; }
+.sw { top: 100%; left: 0; cursor: sw-resize; }
+.se { top: 100%; left: 100%; cursor: se-resize; }
+
+/* Cropped View Mode */
+.is-cropped .crop-overlay {
+    display: none !important;
+}
+
+.is-cropped .video-container {
+    overflow: hidden;
+    /* These will be set dynamically via JS */
+    /* width: ... */
+    /* padding-bottom: ... */
+}
+
+.is-cropped #player {
+    /* transform: ... */
+}
