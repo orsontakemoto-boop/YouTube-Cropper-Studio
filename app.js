@@ -217,250 +217,217 @@ function applyCrop() {
     const relativeTop = (boxRect.top - parentRect.top) / parentRect.height;
     const relativeWidth = boxRect.width / parentRect.width;
     const relativeHeight = boxRect.height / parentRect.height;
+    let mediaRecorder;
+    let recordedChunks = [];
+    let isRecording = false;
+    let canvasStream;
+    let captureStream;
 
-    const scaleX = 1 / relativeWidth;
-    const scaleY = 1 / relativeHeight;
+    const startRecordBtn = document.getElementById('startRecordBtn');
+    const stopRecordBtn = document.getElementById('stopRecordBtn');
+    const recordingStatus = document.getElementById('recordingStatus');
 
-    const playerEl = document.getElementById('player');
+    async function startRecording() {
+        try {
+            // 1. Capture the screen/tab
+            captureStream = await navigator.mediaDevices.getDisplayMedia({
+                video: {
+                    displaySurface: "browser", // Prefer browser tab
+                },
+                audio: true,
+                preferCurrentTab: true // Experimental flag
+            });
 
-    // Logic: Move the crop start to (0,0) then scale up
-    // transform-origin: 0 0
-    // transform: scale(S) translate(-L, -T)
+            // 2. Setup Canvas for processing (cropping)
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
 
-    playerEl.style.transformOrigin = '0 0';
-    playerEl.style.transform = `scale(${scaleX}, ${scaleY}) translate(-${relativeLeft * 100}%, -${relativeTop * 100}%)`;
+            // Get the video track from capture
+            const videoTrack = captureStream.getVideoTracks()[0];
+            const { width, height } = videoTrack.getSettings();
 
-    videoContainer.classList.add('is-cropped');
-}
+            // We need to determine the crop area relative to the CAPTURED stream.
+            // This is tricky because the captured stream is the WHOLE tab (or screen).
+            // We need to map the cropBox coordinates (DOM) to the video frame coordinates.
+            // Assumption: The user captures the TAB.
 
-function removeCrop() {
-    const playerEl = document.getElementById('player');
-    playerEl.style.transform = 'none';
-    videoContainer.classList.remove('is-cropped');
-}
+            // For simplicity in this version: We will record the WHOLE tab but crop it in the canvas loop?
+            // Actually, mapping DOM coordinates to the stream video frame is hard because of scrolling, zooming, high-DPI, etc.
 
-// Event Listeners
-loadBtn.addEventListener('click', loadVideo);
-toggleCropBtn.addEventListener('click', toggleCropView);
-resetBtn.addEventListener('click', () => {
-    removeCrop();
-    resetCropBox();
-    isCroppedMode = false;
-    toggleCropBtn.textContent = "Visualizar Recorte";
-});
+            // ALTERNATIVE: Since we are ALREADY zooming in the player using CSS Transform, 
+            // the "visual" result on screen IS the cropped video (mostly).
+            // BUT `getDisplayMedia` captures the raw tab, not just the viewport? 
+            // No, it captures what is visible.
+            // If we are in "Cropped Mode", the video is zoomed in to fill the container.
+            // If we record the TAB, we record the whole UI too (buttons, etc).
 
-// Recording Logic
-let mediaRecorder;
-let recordedChunks = [];
-let isRecording = false;
-let canvasStream;
-let captureStream;
+            // BETTER APPROACH for "Clean" export:
+            // We can't easily get a clean stream of just the cropped video without the UI.
+            // UNLESS we make a "Clean Mode" where we hide everything else?
 
-const startRecordBtn = document.getElementById('startRecordBtn');
-const stopRecordBtn = document.getElementById('stopRecordBtn');
-const recordingStatus = document.getElementById('recordingStatus');
+            // Let's try to crop the stream based on the video element's position.
+            // We will draw the captured frame into the canvas, but only the part that corresponds to the video player.
 
-async function startRecording() {
-    try {
-        // 1. Capture the screen/tab
-        captureStream = await navigator.mediaDevices.getDisplayMedia({
-            video: {
-                displaySurface: "browser", // Prefer browser tab
-            },
-            audio: true,
-            preferCurrentTab: true // Experimental flag
-        });
+            // Let's set canvas size to the desired output size (e.g. 1920x1080 or the crop ratio)
+            // For now, let's match the crop aspect ratio.
 
-        // 2. Setup Canvas for processing (cropping)
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
+            const rect = cropBox.getBoundingClientRect();
+            canvas.width = rect.width; // This is screen pixels. Might be low res.
+            canvas.height = rect.height;
 
-        // Get the video track from capture
-        const videoTrack = captureStream.getVideoTracks()[0];
-        const { width, height } = videoTrack.getSettings();
+            // To get high res, we should probably use the video resolution?
+            // But we don't have access to the raw video pixels due to CORS (tainted canvas).
+            // So we MUST use the Screen Capture stream.
 
-        // We need to determine the crop area relative to the CAPTURED stream.
-        // This is tricky because the captured stream is the WHOLE tab (or screen).
-        // We need to map the cropBox coordinates (DOM) to the video frame coordinates.
-        // Assumption: The user captures the TAB.
+            // Let's just record the stream as is for now, but maybe crop it?
+            // Cropping a DisplayMedia stream in canvas is possible.
+            // We need to find WHERE the video is in the stream.
+            // If the user shares the TAB, the top-left of the stream is the top-left of the viewport.
 
-        // For simplicity in this version: We will record the WHOLE tab but crop it in the canvas loop?
-        // Actually, mapping DOM coordinates to the stream video frame is hard because of scrolling, zooming, high-DPI, etc.
+            const drawLoop = () => {
+                if (!isRecording) return;
 
-        // ALTERNATIVE: Since we are ALREADY zooming in the player using CSS Transform, 
-        // the "visual" result on screen IS the cropped video (mostly).
-        // BUT `getDisplayMedia` captures the raw tab, not just the viewport? 
-        // No, it captures what is visible.
-        // If we are in "Cropped Mode", the video is zoomed in to fill the container.
-        // If we record the TAB, we record the whole UI too (buttons, etc).
+                // Draw the captured frame to canvas
+                // We want to draw only the part of the screen that is inside the cropBox?
+                // Wait, if we are in "Visualizar Recorte" mode, the video is ALREADY filling the container (zoomed).
+                // So the "Crop Box" is effectively the whole videoContainer?
+                // Yes! In `applyCrop`, we scale the video so the crop area fills the `videoContainer`.
 
-        // BETTER APPROACH for "Clean" export:
-        // We can't easily get a clean stream of just the cropped video without the UI.
-        // UNLESS we make a "Clean Mode" where we hide everything else?
+                // So, if the user is in "Cropped Mode", we just need to record the `videoContainer` area of the screen.
+                const containerRect = videoContainer.getBoundingClientRect();
 
-        // Let's try to crop the stream based on the video element's position.
-        // We will draw the captured frame into the canvas, but only the part that corresponds to the video player.
+                // We need to account for the browser UI (address bar, etc) if capturing "Window"?
+                // If capturing "Tab", usually (0,0) is the top of the page content.
 
-        // Let's set canvas size to the desired output size (e.g. 1920x1080 or the crop ratio)
-        // For now, let's match the crop aspect ratio.
+                // Let's assume (0,0) of stream is (0,0) of document (viewport).
+                // ctx.drawImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight);
 
-        const rect = cropBox.getBoundingClientRect();
-        canvas.width = rect.width; // This is screen pixels. Might be low res.
-        canvas.height = rect.height;
+                // Source X/Y = containerRect.left / top (relative to viewport)
+                // Source W/H = containerRect.width / height
 
-        // To get high res, we should probably use the video resolution?
-        // But we don't have access to the raw video pixels due to CORS (tainted canvas).
-        // So we MUST use the Screen Capture stream.
+                // Note: devicePixelRatio matters!
+                const dpr = window.devicePixelRatio || 1;
 
-        // Let's just record the stream as is for now, but maybe crop it?
-        // Cropping a DisplayMedia stream in canvas is possible.
-        // We need to find WHERE the video is in the stream.
-        // If the user shares the TAB, the top-left of the stream is the top-left of the viewport.
+                // The stream usually has the resolution of the screen * dpr.
+                // So we need to scale coordinates.
 
-        const drawLoop = () => {
-            if (!isRecording) return;
+                // Create a temporary video element to play the stream so we can draw it
+                // (We can't draw the track directly, need a video element source)
+                // Actually `captureStream` needs to be attached to a hidden video element to be drawn.
+            };
 
-            // Draw the captured frame to canvas
-            // We want to draw only the part of the screen that is inside the cropBox?
-            // Wait, if we are in "Visualizar Recorte" mode, the video is ALREADY filling the container (zoomed).
-            // So the "Crop Box" is effectively the whole videoContainer?
-            // Yes! In `applyCrop`, we scale the video so the crop area fills the `videoContainer`.
+            // Helper to play stream for canvas
+            const hiddenVideo = document.createElement('video');
+            hiddenVideo.srcObject = captureStream;
+            hiddenVideo.muted = true;
+            hiddenVideo.play();
 
-            // So, if the user is in "Cropped Mode", we just need to record the `videoContainer` area of the screen.
+            await new Promise(r => hiddenVideo.onloadedmetadata = r);
+
+            // Update canvas size to match the container's aspect ratio but higher res?
+            // Let's use the container's screen size * dpr for quality.
             const containerRect = videoContainer.getBoundingClientRect();
-
-            // We need to account for the browser UI (address bar, etc) if capturing "Window"?
-            // If capturing "Tab", usually (0,0) is the top of the page content.
-
-            // Let's assume (0,0) of stream is (0,0) of document (viewport).
-            // ctx.drawImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight);
-
-            // Source X/Y = containerRect.left / top (relative to viewport)
-            // Source W/H = containerRect.width / height
-
-            // Note: devicePixelRatio matters!
             const dpr = window.devicePixelRatio || 1;
 
-            // The stream usually has the resolution of the screen * dpr.
-            // So we need to scale coordinates.
+            canvas.width = containerRect.width * dpr;
+            canvas.height = containerRect.height * dpr;
 
-            // Create a temporary video element to play the stream so we can draw it
-            // (We can't draw the track directly, need a video element source)
-            // Actually `captureStream` needs to be attached to a hidden video element to be drawn.
-        };
+            const loop = () => {
+                if (!isRecording) return;
 
-        // Helper to play stream for canvas
-        const hiddenVideo = document.createElement('video');
-        hiddenVideo.srcObject = captureStream;
-        hiddenVideo.muted = true;
-        hiddenVideo.play();
+                // Draw from the hidden video (screen capture)
+                // We crop the area corresponding to the videoContainer
 
-        await new Promise(r => hiddenVideo.onloadedmetadata = r);
+                // Source coordinates (in the stream video)
+                // If the stream matches the viewport size * dpr:
+                const sx = (containerRect.left + window.scrollX) * dpr;
+                const sy = (containerRect.top + window.scrollY) * dpr;
+                const sWidth = containerRect.width * dpr;
+                const sHeight = containerRect.height * dpr;
 
-        // Update canvas size to match the container's aspect ratio but higher res?
-        // Let's use the container's screen size * dpr for quality.
-        const containerRect = videoContainer.getBoundingClientRect();
-        const dpr = window.devicePixelRatio || 1;
+                ctx.drawImage(hiddenVideo, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
 
-        canvas.width = containerRect.width * dpr;
-        canvas.height = containerRect.height * dpr;
+                requestAnimationFrame(loop);
+            };
 
-        const loop = () => {
-            if (!isRecording) return;
+            // Start Loop
+            isRecording = true;
+            loop();
 
-            // Draw from the hidden video (screen capture)
-            // We crop the area corresponding to the videoContainer
+            // 3. Start MediaRecorder on the CANVAS stream
+            canvasStream = canvas.captureStream(30); // 30 FPS
 
-            // Source coordinates (in the stream video)
-            // If the stream matches the viewport size * dpr:
-            const sx = (containerRect.left + window.scrollX) * dpr;
-            const sy = (containerRect.top + window.scrollY) * dpr;
-            const sWidth = containerRect.width * dpr;
-            const sHeight = containerRect.height * dpr;
+            // Merge audio from captureStream if available
+            if (captureStream.getAudioTracks().length > 0) {
+                canvasStream.addTrack(captureStream.getAudioTracks()[0]);
+            }
 
-            ctx.drawImage(hiddenVideo, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
+            mediaRecorder = new MediaRecorder(canvasStream, {
+                mimeType: 'video/webm;codecs=vp9'
+            });
 
-            requestAnimationFrame(loop);
-        };
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) recordedChunks.push(e.data);
+            };
 
-        // Start Loop
-        isRecording = true;
-        loop();
+            mediaRecorder.onstop = saveFile;
 
-        // 3. Start MediaRecorder on the CANVAS stream
-        canvasStream = canvas.captureStream(30); // 30 FPS
+            mediaRecorder.start();
 
-        // Merge audio from captureStream if available
-        if (captureStream.getAudioTracks().length > 0) {
-            canvasStream.addTrack(captureStream.getAudioTracks()[0]);
+            // UI Updates
+            startRecordBtn.style.display = 'none';
+            stopRecordBtn.style.display = 'block';
+            recordingStatus.style.display = 'flex';
+
+            // Stop listener for the stream (if user clicks "Stop Sharing" in browser UI)
+            captureStream.getVideoTracks()[0].onended = stopRecording;
+
+        } catch (err) {
+            console.error("Error starting recording:", err);
+            alert("Erro ao iniciar gravação: " + err.message);
         }
+    }
 
-        mediaRecorder = new MediaRecorder(canvasStream, {
-            mimeType: 'video/webm;codecs=vp9'
-        });
+    function stopRecording() {
+        if (!isRecording) return;
+        isRecording = false;
+        mediaRecorder.stop();
 
-        mediaRecorder.ondataavailable = (e) => {
-            if (e.data.size > 0) recordedChunks.push(e.data);
-        };
-
-        mediaRecorder.onstop = saveFile;
-
-        mediaRecorder.start();
+        // Stop all tracks
+        captureStream.getTracks().forEach(track => track.stop());
 
         // UI Updates
-        startRecordBtn.style.display = 'none';
-        stopRecordBtn.style.display = 'block';
-        recordingStatus.style.display = 'flex';
-
-        // Stop listener for the stream (if user clicks "Stop Sharing" in browser UI)
-        captureStream.getVideoTracks()[0].onended = stopRecording;
-
-    } catch (err) {
-        console.error("Error starting recording:", err);
-        alert("Erro ao iniciar gravação: " + err.message);
+        startRecordBtn.style.display = 'block';
+        stopRecordBtn.style.display = 'none';
+        recordingStatus.style.display = 'none';
     }
-}
 
-function stopRecording() {
-    if (!isRecording) return;
-    isRecording = false;
-    mediaRecorder.stop();
+    function saveFile() {
+        const blob = new Blob(recordedChunks, {
+            type: 'video/webm'
+        });
+        recordedChunks = [];
 
-    // Stop all tracks
-    captureStream.getTracks().forEach(track => track.stop());
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = 'recorte-youtube.webm';
+        document.body.appendChild(a);
+        a.click();
 
-    // UI Updates
-    startRecordBtn.style.display = 'block';
-    stopRecordBtn.style.display = 'none';
-    recordingStatus.style.display = 'none';
-}
+        setTimeout(() => {
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }, 100);
+    }
 
-function saveFile() {
-    const blob = new Blob(recordedChunks, {
-        type: 'video/webm'
-    });
-    recordedChunks = [];
+    startRecordBtn.addEventListener('click', startRecording);
+    stopRecordBtn.addEventListener('click', stopRecording);
 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = url;
-    a.download = 'recorte-youtube.webm';
-    document.body.appendChild(a);
-    a.click();
-
-    setTimeout(() => {
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-    }, 100);
-}
-
-startRecordBtn.addEventListener('click', startRecording);
-stopRecordBtn.addEventListener('click', stopRecording);
-
-// Add CSS for the recording dot
-const style = document.createElement('style');
-style.textContent = `
+    // Add CSS for the recording dot
+    const style = document.createElement('style');
+    style.textContent = `
     .dot {
         width: 10px;
         height: 10px;
@@ -475,5 +442,5 @@ style.textContent = `
         100% { opacity: 1; }
     }
 `;
-document.head.appendChild(style);
+    document.head.appendChild(style);
 
